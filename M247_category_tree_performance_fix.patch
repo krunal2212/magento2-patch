@@ -1,0 +1,67 @@
+diff --git a/vendor/magento/module-catalog/Block/Adminhtml/Category/Tree.php b/vendor/magento/module-catalog/Block/Adminhtml/Category/Tree.php
+index 824703abb..2e300d86d 100644
+--- a/vendor/magento/module-catalog/Block/Adminhtml/Category/Tree.php
++++ b/vendor/magento/module-catalog/Block/Adminhtml/Category/Tree.php
+@@ -62,6 +62,12 @@ class Tree extends AbstractCategory
+      */
+     protected $secureRenderer;
+ 
++    /**
++     * @var array
++     * This variable indicates whether the category has child categories.
++     */
++    public array $checkIfCategoryHasChild = [];
++
+     /**
+      * @param Context $context
+      * @param CategoryTree $categoryTree
+@@ -400,10 +406,14 @@ class Tree extends AbstractCategory
+         // disallow drag if it's first level and category is root of a store
+         $item['allowDrag'] = $allowMove && ($node->getLevel() == 1 && $rootForStores ? false : true);
+ 
+-        if ((int)$node->getChildrenCount() > 0) {
++        $childCount = (int)$node->getChildrenCount();
++        if ($childCount > 0) {
+             $item['children'] = [];
+         }
+ 
++        /* Added this flag to prevent unused API call for "CategoriesJson" API */
++        $this->checkIfCategoryHasChild[$node->getId()] = ($childCount > 0);
++        
+         $isParent = $this->_isParentSelectedCategory($node);
+ 
+         if ($node->hasChildren()) {
+diff --git a/vendor/magento/module-catalog/view/adminhtml/templates/catalog/category/tree.phtml b/vendor/magento/module-catalog/view/adminhtml/templates/catalog/category/tree.phtml
+index b706eb671..e840c27b4 100644
+--- a/vendor/magento/module-catalog/view/adminhtml/templates/catalog/category/tree.phtml
++++ b/vendor/magento/module-catalog/view/adminhtml/templates/catalog/category/tree.phtml
+@@ -7,7 +7,10 @@
+ /** @var $block \Magento\Catalog\Block\Adminhtml\Category\Tree */
+ /** @var \Magento\Framework\View\Helper\SecureHtmlRenderer $secureRenderer */
+ ?>
+-<?php $root = $block->getRoot(); ?>
++<?php $root = $block->getRoot();
++$getTreeJson  = $block->getTreeJson();
++$checkIfCategoryHasChild = json_encode($block->checkIfCategoryHasChild);
++?>
+ 
+ <div class="categories-side-col">
+     <div class="sidebar-actions">
+@@ -53,6 +56,7 @@
+ 
+         <?php $scriptString = <<<script
+             let TreeConfig, expandAll = false;
++            let categoryChildFlagMap = ($checkIfCategoryHasChild);
+             require([
+                 'jquery',
+                 'jquery/jstree/jquery.jstree'
+@@ -267,7 +271,8 @@ script;
+ 
+                             // Check if the child node has no children (is not yet loaded)
+                             if (childNode.children && childNode.children.length === 0
+-                                && childNode.original && !childNode.original.lastNode) {
++                                && childNode.original && !childNode.original.lastNode
++                                && categoryChildFlagMap[childId] === true) {
+ 
+                                 $.ajax({
+                                     url: '{$block->escapeJs($block->escapeUrl($block->getLoadTreeUrl()))}',
